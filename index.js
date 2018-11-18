@@ -3,6 +3,53 @@ const computed = require('mutant/computed')
 const Value = require('mutant/value')
 const setStyle = require('module-styles')('tre-transform-handles')
 
+function Pivot(pos, infoText) {
+  const extent = Value({w:1,h:1})
+  const transform = computed( [extent, pos], (e, o) => {
+    const r = `translate(${o.x - e.w/2}px, ${o.y - e.h/2}px)`
+    return r
+  })
+  let oldPos, dragStart
+  return h('.pivot', {
+    hooks: [el => {
+      const bb = el.getBoundingClientRect()
+      extent.set({w: bb.width, h: bb.height})
+      return ()=>{}
+    }],
+    style: { transform },
+    'ev-pointerdown': e => {
+      e.stopPropagation()
+      e.preventDefault()
+      e.target.setPointerCapture(e.pointerId)
+      dragStart = {x: e.clientX, y: e.clientY}
+      oldPos = pos()
+      infoText.set(`${oldPos.x} / ${oldPos.y}`)
+    },
+    'ev-pointermove': e => {
+      if (dragStart && oldPos) {
+        e.stopPropagation()
+        e.preventDefault()
+        const dx = e.clientX - dragStart.x
+        const dy = e.clientY - dragStart.y
+        const x = oldPos.x + dx
+        const y = oldPos.y + dy
+        pos.set({x, y})
+        infoText.set(`${x} / ${y}`)
+      }
+    },
+    'ev-pointerup': e => {
+      if (dragStart && oldPos) {
+        e.stopPropagation()
+        e.preventDefault()
+        dragStart = null
+        oldPos = null
+        infoText.set('')
+        e.target.releasePointerCapture(e.pointerId)
+      }
+    }
+  })
+}
+
 
 module.exports = function(opts) {
 
@@ -35,51 +82,86 @@ module.exports = function(opts) {
       place-self: center;
       color: white;
       pointer-events: none;
+      background: rgba(0,0,0, .6);
+      text-shadow: 0 0 4px black;
     }
 
     ${generateStyles()}
    
+    .tre-transform-handles .pivot {
+      width: 32px;
+      height: 32px;
+      background: rgba(255,255,255,0.5);
+      border-radius: 50%;
+      padding: 0;
+      margin: 0;
+    }
   `)
 
   return function renderFrame() {
-    const infoText = Value('')
-    const origin = Value({x: '50%', y: '50%'})
-    const transformOrigin = computed(origin, o => {
-      return `${o.x} ${o.y}`
-    })
+    const size = Value({w: 300, h: 150})
+    const origin = Value({x: size().w/2, y: size().h/2})
     const translate = Value({x: 0, y: 0})
     const rotate = Value(0)
-    const transform = computed([translate, rotate], (tr, r) => {
-      return `translate(${tr.x}px, ${tr.y}px) rotate(${r}deg)`
+    const frame = Value(40)
+
+    const transformOrigin = computed([frame, origin], (f, o) => {
+      return `${f + o.x}px ${f + o.y}py`
     })
+    const transform = computed([frame, translate, rotate], (f, tr, r) => {
+      return `translate(${tr.x - f}px, ${tr.y - f}px) rotate(${r}deg)`
+    })
+    const width = computed([frame, size], (f, s) => {
+      return `${s.w + 2 * f}px`
+    })
+    const height = computed([frame, size], (f, s) => {
+      return `${s.h + 2 * f}px`
+    })
+    const infoText = Value('')
     let dragStart, oldPos, oldRot
+    let pivot
 
     return h('.tre-transform-handles', {
       style: {
-        width: '400px',
-        height: '300px',
+        width,
+        height,
         transform,
         'transform-origin': transformOrigin
       }
     },[
-      h('.nw.rotate', {
-        'ev-mousedown': e => {
+      h('.se.rotate', {
+        'ev-pointerdown': e => {
+          if (dragStart) return
           console.log('start rotate')
           e.stopPropagation()
           e.preventDefault()
+          e.target.setPointerCapture(e.pointerId)
           dragStart = {x: e.clientX, y: e.clientY}
-          oldRot = rotaten()
+          oldRot = rotate()
           infoText.set(`${oldRot} degrees`)
         },
-        'ev-mousemove': e => {
-          if (dragStart && oldRot) {
+        'ev-pointermove': e => {
+          if (dragStart && oldRot !== undefined) {
+            const pbb = pivot.getBoundingClientRect()
+            const x = pbb.x + pbb.width / 2
+            const y = pbb.y + pbb.height / 2
+
+            const angle1 = getAngle({x, y}, dragStart)
+            const angle2 = getAngle({x, y}, {x: e.clientX, y: e.clientY})
+            const delta = angle2 - angle1
+            const newRot = oldRot + delta
+            infoText.set(`${newRot} degrees`)
+            rotate.set(newRot)
           }
         },
-        'ev-mouseup': e => {
-          console.log('end drag')
-          dragStart = null
-          oldRot = null
-          infoText.set('')
+        'ev-pointerup': e => {
+          if (dragStart && oldRot !== undefined) {
+            console.log('end rotate')
+            dragStart = null
+            oldRot = null
+            infoText.set('')
+            e.target.releasePointerCapture(e.pointerId)
+          }
         }
       }),
       h('.nw.size'),
@@ -96,18 +178,26 @@ module.exports = function(opts) {
       h('.w.size'),
       
       h('.container', {
+        hooks: [el => {
+          const bb_content = el.getBoundingClientRect()
+          const bb_frame = el.parentElement.getBoundingClientRect()
+          frame.set( (bb_frame.width - bb_content.width) / 2 )
+          return ()=>{}
+        }],
         style: {
           background: 'blue'
         },
-        'ev-mousedown': e => {
+        'ev-pointerdown': e => {
+          if (dragStart) return
           console.log('start drag')
           e.stopPropagation()
           e.preventDefault()
+          e.target.setPointerCapture(e.pointerId)
           dragStart = {x: e.clientX, y: e.clientY}
           oldPos = translate()
           infoText.set(`${oldPos.x} / ${oldPos.y}`)
         },
-        'ev-mousemove': e => {
+        'ev-pointermove': e => {
           if (dragStart && oldPos) {
             const dx = e.clientX - dragStart.x
             const dy = e.clientY - dragStart.y
@@ -117,13 +207,16 @@ module.exports = function(opts) {
             infoText.set(`${x} / ${y}`)
           }
         },
-        'ev-mouseup': e => {
-          console.log('end drag')
-          dragStart = null
-          oldPos = null
-          infoText.set('')
+        'ev-pointerup': e => {
+          if (dragStart && oldPos) {
+            console.log('end drag')
+            dragStart = null
+            oldPos = null
+            infoText.set('')
+            e.target.releasePointerCapture(e.pointerId)
+          }
         }
-      }),
+      }, [pivot = Pivot(origin, infoText)]),
       h('.info', infoText)
     ])
   }
@@ -176,4 +269,12 @@ function generateStyles() {
   for(let i=0; i<4; ++i) l.push(cornerStyles(i))
   for(let i=0; i<4; ++i) l.push(middleStyles(i))
   return l.join('\n')
+}
+
+function getAngle(origin, p) {
+  const dx = p.x - origin.x
+  const dy = origin.y - p.y
+  if (dx == 0) return dy > 1 ? Math.PI * 3 / 2 : Math.PI / 2
+  const a = Math.atan(dy / dx)
+  return -a * 360.0 / (2 * Math.PI)
 }
