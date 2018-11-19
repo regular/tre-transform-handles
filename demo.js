@@ -25,9 +25,16 @@ const renderHandles = RenderHandles({})
 
 document.body.appendChild(
   h('.stage', [
-    renderHandles(
+    renderHandles([
       h('div', "Hi, I'm Elfo!"),
-      {
+      renderHandles([
+        h('div', {
+          style: {
+            background: 'cyan'
+          }
+        }, "Hi, I'm Elfo, too!"),
+      ])
+    ], {
         size: Value({w: 600, h: 400}),
         origin: Value({x: 600, y: 200}),
         position: Value({x: 800, y: 300})

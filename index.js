@@ -3,7 +3,7 @@ const computed = require('mutant/computed')
 const Value = require('mutant/value')
 const setStyle = require('module-styles')('tre-transform-handles')
 
-function Pivot(pos, infoText) {
+function Pivot(pos, constraints, infoText) {
   const extent = Value({w:1,h:1})
   const cursor = Value('unset')
   const transform = computed( [extent, pos], (e, o) => {
@@ -49,8 +49,15 @@ function Pivot(pos, infoText) {
         const ep = eventPosInParentCoords(e)
         const dx = ep.x - dragStart.x
         const dy = ep.y - dragStart.y
-        const x = oldPos.x + dx
-        const y = oldPos.y + dy
+        let x = oldPos.x + dx
+        let y = oldPos.y + dy
+        const c = constraints()
+        if (c) {
+          x = Math.max(c.minX, x)
+          x = Math.min(c.maxX, x)
+          y = Math.max(c.minY, y)
+          y = Math.min(c.maxY, y)
+        }
         pos.set({x, y})
         infoText.set(`${x} / ${y}`)
       }
@@ -136,6 +143,9 @@ module.exports = function(opts) {
   return function renderFrame(content, opts) {
     opts = opts || {}
     const size = opts.size || Value({w: 300, h: 150})
+    const pivotContraints = computed(size, s => {
+      return { minX: 0, minY: 0, maxX: s.w, maxY: s.h }
+    })
     const origin = opts.origin || Value({x: size().w/2, y: size().h/2})
     const translate = opts.position || Value({x: 0, y: 0})
     const rotate = opts.rotation || Value(0)
@@ -156,6 +166,13 @@ module.exports = function(opts) {
     const infoText = Value('')
     let dragStart, oldPos, oldRot
     let pivot
+
+    function eventPosInParentCoords(e) {
+      return {
+        x: translate().x + e.offsetX - origin().x,
+        y: translate().y + e.offsetY - origin().y
+      }
+    }
 
     return h('.tre-transform-handles', {
       style: {
@@ -215,6 +232,7 @@ module.exports = function(opts) {
       
       h('.container', {
         hooks: [el => {
+          // Does this work if rotated? Probably not!
           const bb_content = el.getBoundingClientRect()
           const bb_frame = el.parentElement.getBoundingClientRect()
           frame.set( (bb_frame.width - bb_content.width) / 2 )
@@ -225,18 +243,18 @@ module.exports = function(opts) {
         },
         'ev-pointerdown': e => {
           if (dragStart) return
-          console.log('start drag')
           e.stopPropagation()
           e.preventDefault()
           e.target.setPointerCapture(e.pointerId)
-          dragStart = {x: e.clientX, y: e.clientY}
+          dragStart = eventPosInParentCoords(e)
           oldPos = translate()
           infoText.set(`${oldPos.x} / ${oldPos.y}`)
         },
         'ev-pointermove': e => {
           if (dragStart && oldPos) {
-            const dx = e.clientX - dragStart.x
-            const dy = e.clientY - dragStart.y
+            const ep = eventPosInParentCoords(e)
+            const dx = ep.x - dragStart.x
+            const dy = ep.y - dragStart.y
             const x = oldPos.x + dx
             const y = oldPos.y + dy
             translate.set({x, y})
@@ -252,7 +270,7 @@ module.exports = function(opts) {
             e.target.releasePointerCapture(e.pointerId)
           }
         }
-      }, [content, pivot = Pivot(origin, infoText)]),
+      }, [content, pivot = Pivot(origin, pivotContraints, infoText)]),
       h('.info', infoText)
     ])
   }
