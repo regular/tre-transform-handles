@@ -5,32 +5,50 @@ const setStyle = require('module-styles')('tre-transform-handles')
 
 function Pivot(pos, infoText) {
   const extent = Value({w:1,h:1})
+  const cursor = Value('unset')
   const transform = computed( [extent, pos], (e, o) => {
     const r = `translate(${o.x - e.w/2}px, ${o.y - e.h/2}px)`
     return r
   })
   let oldPos, dragStart
+  let pointerId
+
+  function eventPosInParentCoords(e) {
+    return {
+      x: pos().x + e.offsetX - extent().w / 2,
+      y: pos().y + e.offsetY - extent().h / 2
+    }
+  }
+
   return h('.pivot', {
     hooks: [el => {
       const bb = el.getBoundingClientRect()
+      console.log('pivot bb', bb)
       extent.set({w: bb.width, h: bb.height})
       return ()=>{}
     }],
-    style: { transform },
+    style: { transform, cursor },
     'ev-pointerdown': e => {
+      console.log('pivot drag')
       e.stopPropagation()
       e.preventDefault()
-      e.target.setPointerCapture(e.pointerId)
-      dragStart = {x: e.clientX, y: e.clientY}
+      pointerId = e.pointerId
+      e.target.setPointerCapture(pointerId)
+      dragStart = eventPosInParentCoords(e)
       oldPos = pos()
       infoText.set(`${oldPos.x} / ${oldPos.y}`)
+      cursor.set('grabbing')
     },
     'ev-pointermove': e => {
-      if (dragStart && oldPos) {
+      if (e.pointerId === pointerId) {
         e.stopPropagation()
         e.preventDefault()
-        const dx = e.clientX - dragStart.x
-        const dy = e.clientY - dragStart.y
+
+        console.log(e.pointerId, e.offsetX, e.offsetY)
+
+        const ep = eventPosInParentCoords(e)
+        const dx = ep.x - dragStart.x
+        const dy = ep.y - dragStart.y
         const x = oldPos.x + dx
         const y = oldPos.y + dy
         pos.set({x, y})
@@ -38,13 +56,15 @@ function Pivot(pos, infoText) {
       }
     },
     'ev-pointerup': e => {
-      if (dragStart && oldPos) {
+      if (e.pointerId === pointerId) {
         e.stopPropagation()
         e.preventDefault()
         dragStart = null
         oldPos = null
         infoText.set('')
-        e.target.releasePointerCapture(e.pointerId)
+        cursor.set('unset')
+        e.target.releasePointerCapture(pointerId)
+        pointerId = null
       }
     }
   })
@@ -55,28 +75,39 @@ module.exports = function(opts) {
 
   setStyle(`
     .tre-transform-handles {
+      position: absolute;
+      top: 0;
+      left: 0;
+      padding: 0;
+      margin: 0;
       display: grid;
       grid-template-rows: 1em 1em 1fr 1em 1fr 1em 1em;
       grid-template-columns: 1em 1em 1fr 1em 1fr 1em 1em;
       background: rgba(0,0,255,0.3);
     }
-    .tre-transform-handles .container {
+    .tre-transform-handles > * {
+      padding: 0;
+      margin: 0;
+    }
+    .tre-transform-handles > .container {
+      position: relative;
       grid-row: 3 / 6;
       grid-column: 3 / 6;
       outline: 2px dashed #777;
       cursor: grab;
+      z-index: 0;
     }
-    .tre-transform-handles .rotate {
+    .tre-transform-handles > .rotate {
       border-radius: 2em;
       opacity: .2;
     }
-    .tre-transform-handles .rotate:hover {
+    .tre-transform-handles > .rotate:hover {
       opacity: 1;
     }
-    .tre-transform-handles .size {
+    .tre-transform-handles > .size {
       background: #777;
     }
-    .tre-transform-handles .info {
+    .tre-transform-handles > .info {
       grid-row: 3 / -3;
       grid-column: 3 / -3;
       place-self: center;
@@ -84,11 +115,15 @@ module.exports = function(opts) {
       pointer-events: none;
       background: rgba(0,0,0, .6);
       text-shadow: 0 0 4px black;
+      z-index: 1;
     }
 
     ${generateStyles()}
    
-    .tre-transform-handles .pivot {
+    .tre-transform-handles > .container > .pivot {
+      position: absolute;
+      left: 0;
+      top: 0;
       width: 32px;
       height: 32px;
       background: rgba(255,255,255,0.5);
@@ -98,18 +133,19 @@ module.exports = function(opts) {
     }
   `)
 
-  return function renderFrame() {
-    const size = Value({w: 300, h: 150})
-    const origin = Value({x: size().w/2, y: size().h/2})
-    const translate = Value({x: 0, y: 0})
-    const rotate = Value(0)
+  return function renderFrame(content, opts) {
+    opts = opts || {}
+    const size = opts.size || Value({w: 300, h: 150})
+    const origin = opts.origin || Value({x: size().w/2, y: size().h/2})
+    const translate = opts.position || Value({x: 0, y: 0})
+    const rotate = opts.rotation || Value(0)
     const frame = Value(40)
 
     const transformOrigin = computed([frame, origin], (f, o) => {
-      return `${f + o.x}px ${f + o.y}py`
+      return `${f + o.x}px ${f + o.y}px`
     })
-    const transform = computed([frame, translate, rotate], (f, tr, r) => {
-      return `translate(${tr.x - f}px, ${tr.y - f}px) rotate(${r}deg)`
+    const transform = computed([frame, origin, translate, rotate], (f, o, tr, r) => {
+      return `translate(${tr.x - f - o.x}px, ${tr.y - f - o.y}px) rotate(${r}deg)`
     })
     const width = computed([frame, size], (f, s) => {
       return `${s.w + 2 * f}px`
@@ -216,7 +252,7 @@ module.exports = function(opts) {
             e.target.releasePointerCapture(e.pointerId)
           }
         }
-      }, [pivot = Pivot(origin, infoText)]),
+      }, [content, pivot = Pivot(origin, infoText)]),
       h('.info', infoText)
     ])
   }
