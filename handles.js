@@ -140,7 +140,7 @@ module.exports = function(opts) {
     }
   `)
 
-  return function renderHandles(kv, ctx) {
+  return function renderHandles(children, ctx) {
     ctx = ctx || {}
     const stageScale = ctx.stageScale || Value(1.0)
     const size = ctx.size || Value({w: 300, h: 150})
@@ -176,6 +176,12 @@ module.exports = function(opts) {
     }
 
     return h('.tre-transform-handles', {
+      hooks: [ el => el => {
+        if (children && children.abort) {
+          console.log('tre-transform-handles: releasing children')
+          children.abort()
+        }
+      }],
       style: {
         width,
         height,
@@ -271,7 +277,7 @@ module.exports = function(opts) {
             e.target.releasePointerCapture(e.pointerId)
           }
         }
-      }, [pivot = Pivot(origin, pivotContraints, infoText, stageScale)]),
+      }, [children, pivot = Pivot(origin, pivotContraints, infoText, stageScale)]),
       h('.info', infoText)
     ])
   }

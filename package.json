@@ -18,8 +18,10 @@
   },
   "homepage": "https://github.com/regular/tre-transform-handles#readme",
   "dependencies": {
+    "collect-mutations": "^1.0.3",
     "module-styles": "^1.0.0",
-    "mutant": "^3.22.1"
+    "mutant": "^3.22.1",
+    "pull-stream": "^3.6.9"
   },
   "devDependencies": {
     "browserify": "^16.2.3",

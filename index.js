@@ -1,13 +1,27 @@
 const h = require('mutant/html-element')
+const MutantArray = require('mutant/array')
 const MutantDict = require('mutant/dict')
+const MutantMap = require('mutant/map')
 const Value = require('mutant/value')
 const computed = require('mutant/computed')
 const setStyle = require('module-styles')('tre-transforms')
+const pull = require('pull-stream')
+const collectMutations = require('collect-mutations')
 
 const RenderHandles = require('./handles')
 
-module.exports = function RenderTransform(opts) {
+module.exports = function RenderTransform(ssb, opts) {
   opts = opts || {}
+  const renderOnStage = opts.renderOnStage || (kv => h('div', 'renderTransform: no on-stage renderer'))
+  const manualOrder = opts.manualOrder || {
+    get: kv => kv.value.content && kv.value.content['manual-order-index'] || 0,
+  }
+  function manualSort(kva, kvb) {
+    const a = manualOrder.get(kva)
+    const b = manualOrder.get(kvb)
+    return a - b
+  }
+
   const renderHandles = RenderHandles(opts)
 
   setStyle(`
@@ -30,6 +44,25 @@ module.exports = function RenderTransform(opts) {
       grid-column: 3/4;
     }
   `)
+
+  function children(kv, render, ctx) {
+    const newCtx = Object.assign({}, ctx, {
+      path: (ctx && ctx.path || []).concat(kv)
+    })
+    const kids = MutantArray()
+    const drain = collectMutations(kids, {sync: true})
+    pull(
+      ssb.revisions.messagesByBranch(revisionRoot(kv), {live: true, sync: true}),
+      drain
+    )
+    const sorted = computed(kids, l => l.sort(manualSort))
+    const els = MutantMap(sorted, kv => render(kv, Object.assign({}, newCtx, {
+        dict: ctx.drafts && ctx.drafts.get(kv)
+      }
+    )))
+    els.abort = drain.abort
+    return els
+  }
 
   return function renderTransform(kv, ctx) {
     ctx = ctx || {}
@@ -56,12 +89,12 @@ module.exports = function RenderTransform(opts) {
         })
       )
     } else if (ctx.where == 'stage') {
-      return renderHandles(null, Object.assign({
+      return renderHandles(children(kv, renderOnStage, ctx), Object.assign({
         size: dict.get('size'),
         origin: dict.get('origin'),
         position: dict.get('position'),
         rotation: dict.get('rotation')
-      }, ctx), h('div', 'Hello World!'))
+      }, ctx))
     }
 
     function renderInputs(name) {
@@ -120,4 +153,8 @@ function Sorter() {
   return function(a, b) {
     return list.indexOf(a) - list.indexOf(b)
   }
+}
+
+function revisionRoot(kv) {
+  return kv.value.content && kv.value.content.revisionRoot || kv.key
 }
