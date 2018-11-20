@@ -27,16 +27,18 @@ module.exports = function(opts) {
       grid-row: 3 / 6;
       grid-column: 3 / 6;
       cursor: grab;
-      //z-index: 0;
     }
     .tre-transform-handles.selected > .container {
       outline: 2px dashed #777;
     }
     .tre-transform-handles.selected > .rotate {
+      width: 1em;
+      height: 1em;
       border-radius: 2em;
       opacity: .2;
     }
     .tre-transform-handles.selected > .rotate:hover {
+      border-color: white;
       opacity: 1;
     }
     .tre-transform-handles > .size {
@@ -128,21 +130,17 @@ module.exports = function(opts) {
         transform,
         'transform-origin': transformOrigin
       }, 
-      'ev-mouseup': e => {
-        e.stopPropagation()
-        e.preventDefault()
-        primarySelection.set(kv)
-        return false
-      },
       'ev-click': e => {
         e.stopPropagation()
         e.preventDefault()
+        const selected = primarySelection()
+        if (selected && selected.key == kv.key) return
         primarySelection.set(kv)
-        return false
       }
     },[
       h('.se.rotate', {
         'ev-pointerdown': e => {
+          console.log('pointerdown on ROT')
           if (dragStart) return
           console.log('start rotate')
           e.stopPropagation()
@@ -150,10 +148,12 @@ module.exports = function(opts) {
           e.target.setPointerCapture(e.pointerId)
           dragStart = {x: e.clientX, y: e.clientY}
           oldRot = rotate()
-          infoText.set(`${oldRot.z} degrees`)
+          infoText.set(`${round(oldRot.z)} degrees`)
         },
         'ev-pointermove': e => {
           if (dragStart && oldRot !== undefined) {
+            e.stopPropagation()
+            e.preventDefault()
             const pbb = pivot.getBoundingClientRect()
             const x = pbb.x + pbb.width / 2
             const y = pbb.y + pbb.height / 2
@@ -162,7 +162,7 @@ module.exports = function(opts) {
             const angle2 = getAngle({x, y}, {x: e.clientX, y: e.clientY})
             const delta = angle2 - angle1
             const newRot = {z: oldRot.z + delta}
-            infoText.set(`${newRot.z} degrees`)
+            infoText.set(`${round(newRot.z)} degrees`)
             rotate.set(newRot)
           }
         },
@@ -173,6 +173,7 @@ module.exports = function(opts) {
             oldRot = null
             infoText.set('')
             e.target.releasePointerCapture(e.pointerId)
+            e.stopPropagation()
           }
         }
       }),
@@ -201,6 +202,10 @@ module.exports = function(opts) {
           background: 'blue'
         },
         'ev-pointerdown': e => {
+          if (e.target.classList.contains('rotate')) {
+            console.log('container received pointerdown on rotate handle!')
+            return
+          }
           if (dragStart) return
           if (!e.target.closest('.tre-transform-handles').classList.contains('selected')) return
           e.stopPropagation()
@@ -208,20 +213,19 @@ module.exports = function(opts) {
           e.target.setPointerCapture(e.pointerId)
           dragStart = eventPosInParentCoords(e)
           oldPos = translate()
-          infoText.set(`${oldPos.x} / ${oldPos.y}`)
-          return false
+          infoText.set(`${round(oldPos.x)} / ${round(oldPos.y)}`)
         },
         'ev-pointermove': e => {
           if (dragStart && oldPos) {
             e.stopPropagation()
+            e.preventDefault()
             const ep = eventPosInParentCoords(e)
             const dx = ep.x - dragStart.x
             const dy = ep.y - dragStart.y
             const x = oldPos.x + dx
             const y = oldPos.y + dy
             translate.set({x, y})
-            infoText.set(`${x} / ${y}`)
-            return false
+            infoText.set(`${round(x)} / ${round(y)}`)
           }
         },
         'ev-pointerup': e => {
@@ -233,7 +237,6 @@ module.exports = function(opts) {
             oldPos = null
             infoText.set('')
             e.target.releasePointerCapture(e.pointerId)
-            return false
           }
         }
       }, [children, pivot = Pivot(origin, pivotContraints, infoText, stageScale)]),
@@ -373,3 +376,6 @@ function Pivot(pos, constraints, infoText, stageScale) {
   })
 }
 
+function round(x) {
+  return Math.round(x * 10) / 10
+}
