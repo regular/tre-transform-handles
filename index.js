@@ -57,7 +57,7 @@ module.exports = function RenderTransform(ssb, opts) {
     )
     const sorted = computed(kids, l => l.sort(manualSort))
     const els = MutantMap(sorted, kv => render(kv, Object.assign({}, newCtx, {
-        dict: ctx.drafts && ctx.drafts.get(kv)
+        dict: ctx.drafts && ctx.drafts.get(kv.key)
       }
     )))
     els.abort = drain.abort
@@ -89,7 +89,7 @@ module.exports = function RenderTransform(ssb, opts) {
         })
       )
     } else if (ctx.where == 'stage') {
-      return renderHandles(children(kv, renderOnStage, ctx), Object.assign({
+      return renderHandles(kv, children(kv, renderOnStage, ctx), Object.assign({
         size: dict.get('size'),
         origin: dict.get('origin'),
         position: dict.get('position'),
