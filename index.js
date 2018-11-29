@@ -76,9 +76,7 @@ module.exports = function RenderTransform(ssb, opts) {
       if (!dict.has(key)) dict.put(key, Value(content[key] !== undefined ? content[key] : value)) 
     }
 
-    const defaults = factory().content()
-    delete defaults.type
-    Object.keys(defaults).forEach( k => {
+    Object.keys(defaults()).forEach( k => {
       setIfMissing(k, defaults[k])
     })
 
@@ -126,26 +124,43 @@ module.exports = function RenderTransform(ssb, opts) {
 
 module.exports.factory = factory
   
-function factory() {
+function factory(config) {
   const type = 'transform'
   return {
     type,
     i18n: {
       'en': 'Transform'
     },
-    content: function() {
+    prototype: function() {
       return {
         type,
-        size: {w: 400, h: 300},
-        origin: {x: 0, y: 0},
-        position: {x: 0, y: 0},
-        rotation: {z: 0}
+        size: {x: 0, y: 0, z: 0},
+        origin: {x: 0, y: 0, z: 0},
+        position: {x: 0, y: 0, z: 0},
+        rotation: {x: 0, y:0, z: 0},
+        schema: {
+        }
       }
+    },
+    content: function() {
+      return Object.assign({
+        type,
+        prototype: config.tre.prototypes[type]
+      }, defaults())
     }
   }
 }
 
 // -- utils
+
+function defaults() {
+  return {
+    size: {w: 400, h: 300},
+    origin: {x: 0, y: 0},
+    position: {x: 0, y: 0},
+    rotation: {z: 0}
+  }
+}
 
 function Sorter() {
   const list = 'x y z w h'.split(' ')
