@@ -82,7 +82,7 @@ module.exports = function RenderTransform(ssb, opts) {
 
     if (ctx.where == 'editor') {
       return h('div.tre-transforms-panes',
-        Object.keys(defaults).map( k => {
+        Object.keys(defaults()).map( k => {
           return renderInputs(k)
         })
       )
@@ -139,6 +139,39 @@ function factory(config) {
         position: {x: 0, y: 0, z: 0},
         rotation: {x: 0, y:0, z: 0},
         schema: {
+          description: 'A 2D/3D rectangle or box with position, anchor (origin) and rotation',
+          type: 'object',
+          required: ['type', 'size', 'position'],
+          properties: {
+            type: {
+              "const": type
+            },
+            size: { $ref: '#/definitions/vec3f' },
+            origin: { $ref: '#/definitions/vec3f' },
+            position: { $ref: '#/definitions/vec3f' },
+            rotation: { $ref: '#/definitions/vec3f' }
+          },
+          "ui": {
+            "title": "User Interface",
+            "type": "object",
+            "properties": {
+              "color": {
+                "type": "string",
+                "input-type": "color"
+              }
+            }
+          },
+          definitions: {
+            vec3f: {
+              type: 'object',
+              required: ['x', 'y'],
+              properties: {
+                x: { type: 'number' },
+                y: { type: 'number' },
+                z: { type: 'number' }
+              }
+            }
+          }
         }
       }
     },
