@@ -151,16 +151,6 @@ function factory(config) {
             position: { $ref: '#/definitions/vec3f' },
             rotation: { $ref: '#/definitions/vec3f' }
           },
-          "ui": {
-            "title": "User Interface",
-            "type": "object",
-            "properties": {
-              "color": {
-                "type": "string",
-                "input-type": "color"
-              }
-            }
-          },
           definitions: {
             vec3f: {
               type: 'object',
